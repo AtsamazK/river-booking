@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Бронирование мест в речных портах Москвы</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+body { background-color: #f8f9fa; font-family: 'Inter', sans-serif; }
+.card:hover { transform: translateY(-3px); transition: 0.2s; }
+.badge { font-size: 0.9em; }
+</style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+  <div class="container">
+    <a class="navbar-brand" href="#" onclick="showPorts()">Речные порты Москвы</a>
+  </div>
+</nav>
+
+<div class="container" id="content"></div>
+
+<script>
+const ports = [
+  { id: 1, name: "Северный речной порт", address: "Ленинградское ш., 51" },
+  { id: 2, name: "Южный речной порт", address: "Каширское ш., 1" },
+  { id: 3, name: "Нагатинский причал", address: "Нагатинская наб., 12" },
+  { id: 4, name: "Тушинский порт", address: "Волоколамское ш., 64" }
+];
+
+let places = JSON.parse(localStorage.getItem("places")) || [
+  { id: 1, port_id: 1, name: "Причал №1", length: 40, status: "free" },
+  { id: 2, port_id: 1, name: "Причал №2", length: 60, status: "occupied" },
+  { id: 3, port_id: 1, name: "Причал №3", length: 50, status: "free" },
+  { id: 4, port_id: 2, name: "Причал №1", length: 45, status: "free" },
+  { id: 5, port_id: 2, name: "Причал №2", length: 55, status: "free" },
+  { id: 6, port_id: 2, name: "Причал №3", length: 65, status: "occupied" },
+  { id: 7, port_id: 3, name: "Причал №1", length: 35, status: "free" },
+  { id: 8, port_id: 3, name: "Причал №2", length: 50, status: "occupied" },
+  { id: 9, port_id: 3, name: "Причал №3", length: 70, status: "free" },
+  { id: 10, port_id: 4, name: "Причал №1", length: 60, status: "free" },
+  { id: 11, port_id: 4, name: "Причал №2", length: 80, status: "free" },
+  { id: 12, port_id: 4, name: "Причал №3", length: 40, status: "occupied" }
+];
+
+function savePlaces() {
+  localStorage.setItem("places", JSON.stringify(places));
+}
+
+function showPorts() {
+  let html = `<h2 class="mb-4">Выберите порт</h2><div class="row">`;
+  for (let port of ports) {
+    html += `
+      <div class="col-md-6 mb-3">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">${port.name}</h5>
+            <p class="card-text text-muted">${port.address}</p>
+            <button class="btn btn-primary" onclick="showPort(${port.id})">Посмотреть места</button>
+          </div>
+        </div>
+      </div>`;
+  }
+  html += "</div>";
+  document.getElementById("content").innerHTML = html;
+}
+
+function showPort(port_id) {
+  const port = ports.find(p => p.id === port_id);
+  const list = places.filter(p => p.port_id === port_id);
+  let html = `
+    <h3>${port.name}</h3>
+    <p class="text-muted">${port.address}</p>
+    <table class="table table-striped">
+      <thead><tr><th>Название</th><th>Длина (м)</th><th>Статус</th><th></th></tr></thead>
+      <tbody>`;
+  for (let place of list) {
+    html += `<tr>
+      <td>${place.name}</td>
+      <td>${place.length}</td>
+      <td>${place.status === 'free' ? 
+          '<span class="badge bg-success">Свободен</span>' :
+          '<span class="badge bg-danger">Занят</span>'}</td>
+      <td>${place.status === 'free' ?
+          `<button class="btn btn-outline-primary btn-sm" onclick="book(${place.id})">Забронировать</button>` : ''}</td>
+    </tr>`;
+  }
+  html += `</tbody></table>
+    <button class="btn btn-secondary mt-3" onclick="showPorts()">Назад</button>`;
+  document.getElementById("content").innerHTML = html;
+}
+
+function book(place_id) {
+  const place = places.find(p => p.id === place_id);
+  let html = `
+    <h4>Бронирование: ${place.name}</h4>
+    <form onsubmit="submitBooking(event, ${place_id})" class="mt-3">
+      <div class="mb-3">
+        <label class="form-label">Ваше имя</label>
+        <input type="text" id="name" class="form-control" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Телефон</label>
+        <input type="text" id="phone" class="form-control" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Отправить заявку</button>
+      <button type="button" class="btn btn-secondary" onclick="showPorts()">Отмена</button>
+    </form>`;
+  document.getElementById("content").innerHTML = html;
+}
+
+function submitBooking(e, place_id) {
+  e.preventDefault();
+  const name = document.getElementById("name").value.trim();
+  const phone = document.getElementById("phone").value.trim();
+  if (!name || !phone) return;
+  const place = places.find(p => p.id === place_id);
+  place.status = "occupied";
+  savePlaces();
+  alert(`Место "${place.name}" успешно забронировано на имя ${name}.`);
+  showPorts();
+}
+
+// При загрузке
+showPorts();
+</script>
+</body>
+</html>
