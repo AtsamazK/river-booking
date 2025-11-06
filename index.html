@@ -3,127 +3,296 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Бронирование мест в речных портах Москвы</title>
+<title>Поплавок — бронирование мест в речных портах Москвы</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-body { background-color: #f8f9fa; font-family: 'Inter', sans-serif; }
-.card:hover { transform: translateY(-3px); transition: 0.2s; }
-.badge { font-size: 0.9em; }
+body { background: linear-gradient(135deg, #e6efff, #ffffff); font-family: 'Inter', sans-serif; color: #222; }
+.navbar-brand img { width: 28px; height: 28px; margin-right: 8px; filter: brightness(0) invert(1); }
+.navbar-brand span { font-weight: 700; letter-spacing: 0.5px; }
+.navbar { box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+.card { border: none; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1); transition: transform 0.3s ease, box-shadow 0.3s ease; position: relative; }
+.card:hover { transform: translateY(-6px); box-shadow: 0 8px 20px rgba(0,0,0,0.15); }
+.status-badge { position: absolute; bottom: 12px; left: 15px; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9em; color: white; animation: pulse 2s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(72, 239, 128, 0.6); } 70% { box-shadow: 0 0 0 10px rgba(72, 239, 128, 0); } 100% { box-shadow: 0 0 0 0 rgba(72, 239, 128, 0); } }
+.status-free { background-color: #28a745; }
+.status-occupied { background-color: #dc3545; animation: none; }
+.btn-book { position: absolute; bottom: 8px; right: 15px; }
+#map { height: 400px; border-radius: 10px; margin-bottom: 20px; }
+.leaflet-control-attribution { font-size: 0.6em !important; opacity: 0.6 !important; }
+.modal-content { border-radius: 10px; }
+.price-text { font-weight: bold; color: #0d6efd; margin-bottom: 35px; }
+.card img { height: 150px; object-fit: cover; border-bottom: 1px solid #ddd; }
 </style>
 </head>
 <body>
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
-  <div class="container">
-    <a class="navbar-brand" href="#" onclick="showPorts()">Речные порты Москвы</a>
+  <div class="container d-flex justify-content-between align-items-center">
+    <a class="navbar-brand d-flex align-items-center" href="#" onclick="showPorts()">
+      <img src="https://cdn-icons-png.flaticon.com/512/1833/1833932.png" alt="Лого">
+      <span>Поплавок</span>
+    </a>
+    <div id="userArea" class="d-flex align-items-center">
+      <button class="btn btn-outline-light me-2" onclick="openLogin()">Войти</button>
+      <button class="btn btn-light text-primary me-2" onclick="openRegister()">Регистрация</button>
+    </div>
   </div>
 </nav>
 
 <div class="container" id="content"></div>
 
+<!-- Модальные окна -->
+
+<!-- Вход -->
+<div class="modal fade" id="loginModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Вход</h5></div>
+    <div class="modal-body">
+      <input id="loginPhone" class="form-control mb-3" placeholder="Телефон">
+      <input id="loginPassword" type="password" class="form-control mb-3" placeholder="Пароль">
+      <button class="btn btn-primary w-100" onclick="login()">Войти</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- Регистрация -->
+<div class="modal fade" id="registerModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Регистрация</h5></div>
+    <div class="modal-body">
+      <input id="regName" class="form-control mb-2" placeholder="Имя и фамилия">
+      <input id="regPhone" class="form-control mb-2" placeholder="Телефон">
+      <input id="regPassword" type="password" class="form-control mb-3" placeholder="Пароль">
+      <button class="btn btn-success w-100" onclick="register()">Зарегистрироваться</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- Бронирование -->
+<div class="modal fade" id="bookingModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Дополнительные услуги</h5></div>
+    <div class="modal-body">
+      <label class="form-label">Дата начала аренды:</label>
+      <input id="startDate" type="date" class="form-control mb-2">
+      <label class="form-label">Дата окончания аренды:</label>
+      <input id="endDate" type="date" class="form-control mb-3">
+      <label class="form-label">Резервирование топлива (л):</label>
+      <input id="fuelInput" type="number" min="0" class="form-control mb-3" placeholder="Например, 50">
+      <div class="form-check"><input class="form-check-input" type="checkbox" id="cleaningCheck"><label class="form-check-label" for="cleaningCheck">Уборка</label></div>
+      <div class="form-check"><input class="form-check-input" type="checkbox" id="waterCheck"><label class="form-check-label" for="waterCheck">Пресная вода</label></div>
+      <div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="batteryCheck"><label class="form-check-label" for="batteryCheck">Подзарядка аккумуляторов</label></div>
+      <button class="btn btn-primary w-100" onclick="confirmBooking()">Подтвердить бронирование</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- История бронирований -->
+<div class="modal fade" id="historyModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">История бронирований</h5></div>
+    <div class="modal-body" id="historyContent"></div>
+    <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button></div>
+  </div></div>
+</div>
+
+<!-- Данные морского транспорта -->
+<div class="modal fade" id="shipModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Информация о морском транспорте</h5></div>
+    <div class="modal-body">
+      <input id="shipSerial" class="form-control mb-2" placeholder="Серийный номер">
+      <input id="shipLength" type="number" step="0.1" class="form-control mb-2" placeholder="Длина (м)">
+      <input id="shipWidth" type="number" step="0.1" class="form-control mb-2" placeholder="Ширина (м)">
+      <input id="shipDraft" type="number" step="0.1" class="form-control mb-3" placeholder="Осадка (м)">
+      <button class="btn btn-primary w-100" onclick="saveShipInfo()">Сохранить</button>
+    </div>
+  </div></div>
+</div>
+
 <script>
 const ports = [
-  { id: 1, name: "Северный речной порт", address: "Ленинградское ш., 51" },
-  { id: 2, name: "Южный речной порт", address: "Каширское ш., 1" },
-  { id: 3, name: "Нагатинский причал", address: "Нагатинская наб., 12" },
-  { id: 4, name: "Тушинский порт", address: "Волоколамское ш., 64" }
+  { id: 1, name: "Северный речной порт", address: "Ленинградское ш., 51", lat: 55.8543, lon: 37.4655, photo: "https://prorus.ru/_/manager/files/5fd/38f41b12ae/DJI-0179-result.jpg" },
+  { id: 2, name: "Южный речной порт", address: "Каширское ш., 1", lat: 55.6908, lon: 37.6749, photo: "https://yuzhnyrechnoyvokzal-moscow.ru/wp-content/uploads/2023/08/main-scaled.jpg" },
+  { id: 3, name: "Нагатинский причал", address: "Нагатинская наб., 12", lat: 55.6958, lon: 37.6970, photo: "https://www.m24.ru/b/d/nBkSUhL2hFknmMixJr6BrNOp2Z3z8Zj21iDEh_fH_nKUPXuaDyXTjHou4MVO6BCVoZKf9GqVe5Q_CPawk214LyWK9G1N5ho=iktc3i-GoUdAVpgPhagoDw.jpg" },
+  { id: 4, name: "Тушинский порт", address: "Волоколамское ш., 64", lat: 55.8449, lon: 37.4612, photo: "https://walking.sport.mos.ru/img/route/parksevernoetushino/m2/p08/img01.jpg?1" },
+  { id: 5, name: "Устьинский порт", address: "Устьинская наб., 1", lat: 55.7499, lon: 37.6355, photo: "https://river-travel.ru/wp-content/uploads/2025/08/flagman-00-680x440.jpg" },
+  { id: 6, name: "Северо-Западный порт", address: "Западная набережная, 3", lat: 55.7528, lon: 37.5153, photo: "https://portnews.ru/upload/news/rtf/764_4(14058).jpg" }
 ];
 
-let places = JSON.parse(localStorage.getItem("places")) || [
-  { id: 1, port_id: 1, name: "Причал №1", length: 40, status: "free" },
-  { id: 2, port_id: 1, name: "Причал №2", length: 60, status: "occupied" },
-  { id: 3, port_id: 1, name: "Причал №3", length: 50, status: "free" },
-  { id: 4, port_id: 2, name: "Причал №1", length: 45, status: "free" },
-  { id: 5, port_id: 2, name: "Причал №2", length: 55, status: "free" },
-  { id: 6, port_id: 2, name: "Причал №3", length: 65, status: "occupied" },
-  { id: 7, port_id: 3, name: "Причал №1", length: 35, status: "free" },
-  { id: 8, port_id: 3, name: "Причал №2", length: 50, status: "occupied" },
-  { id: 9, port_id: 3, name: "Причал №3", length: 70, status: "free" },
-  { id: 10, port_id: 4, name: "Причал №1", length: 60, status: "free" },
-  { id: 11, port_id: 4, name: "Причал №2", length: 80, status: "free" },
-  { id: 12, port_id: 4, name: "Причал №3", length: 40, status: "occupied" }
-];
+let user = null;
+let places = [];
+let selectedPlace = null;
 
-function savePlaces() {
-  localStorage.setItem("places", JSON.stringify(places));
+function updateUserArea() {
+  const area = document.getElementById("userArea");
+  if (user) {
+    area.innerHTML = `<span class="text-white fw-bold me-2">${user.name}</span>
+      <button class="btn btn-outline-light btn-sm me-2" onclick="showShipModal()">Морской транспорт</button>
+      <button class="btn btn-outline-light btn-sm me-2" onclick="showHistory()">История</button>
+      <button class="btn btn-outline-light btn-sm" onclick="logout()">Выйти</button>`;
+  } else {
+    area.innerHTML = `<button class="btn btn-outline-light me-2" onclick="openLogin()">Войти</button>
+      <button class="btn btn-light text-primary me-2" onclick="openRegister()">Регистрация</button>`;
+  }
 }
 
+function logout() { user = null; updateUserArea(); alert("Вы вышли из аккаунта."); }
+
+function generatePlaces() {
+  ports.forEach(port => {
+    const count = Math.floor(Math.random() * 5) + 5;
+    for (let i = 1; i <= count; i++) {
+      const roundedPrice = Math.round((Math.random() * 4000 + 1000) / 100) * 100;
+      places.push({ id: `${port.id}-${i}`, port_id: port.id, name: `Причал №${i}`, price: roundedPrice, status: Math.random() > 0.4 ? "free" : "occupied" });
+    }
+  });
+}
+generatePlaces();
+
 function showPorts() {
-  let html = `<h2 class="mb-4">Выберите порт</h2><div class="row">`;
-  for (let port of ports) {
-    html += `
-      <div class="col-md-6 mb-3">
-        <div class="card shadow-sm">
-          <div class="card-body">
-            <h5 class="card-title">${port.name}</h5>
-            <p class="card-text text-muted">${port.address}</p>
-            <button class="btn btn-primary" onclick="showPort(${port.id})">Посмотреть места</button>
-          </div>
-        </div>
-      </div>`;
-  }
-  html += "</div>";
+  let html = `<h2 class="mb-2 fw-bold text-center">Речные порты Москвы</h2>
+    <p class="text-center text-muted mb-4">Выберите порт на карте или из списка ниже:</p>
+    <div id="map"></div><div class="row mt-4" id="portList"></div>`;
   document.getElementById("content").innerHTML = html;
+
+  const map = L.map('map').setView([55.7558, 37.6173], 10);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
+
+  ports.forEach(p => {
+    const marker = L.marker([p.lat, p.lon]).addTo(map);
+    marker.bindPopup(`<b>${p.name}</b><br>${p.address}<br><button class='btn btn-sm btn-primary mt-1' onclick='showPort(${p.id})'>Подробнее</button>`);
+  });
+
+  let listHtml = '';
+  for (let port of ports) {
+    listHtml += `<div class="col-md-6 mb-4">
+      <div class="card p-0 shadow position-relative">
+        <img src="${port.photo}" alt="${port.name}">
+        <div class="p-3">
+          <h5>${port.name}</h5>
+          <p class="text-muted">${port.address}</p>
+          <button class="btn btn-primary" onclick="showPort(${port.id})">Посмотреть причалы</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  document.getElementById("portList").innerHTML = listHtml;
 }
 
 function showPort(port_id) {
   const port = ports.find(p => p.id === port_id);
   const list = places.filter(p => p.port_id === port_id);
-  let html = `
-    <h3>${port.name}</h3>
-    <p class="text-muted">${port.address}</p>
-    <table class="table table-striped">
-      <thead><tr><th>Название</th><th>Длина (м)</th><th>Статус</th><th></th></tr></thead>
-      <tbody>`;
+  let html = `<h3 class="fw-bold">${port.name}</h3><p class="text-muted">${port.address}</p><div class="row">`;
   for (let place of list) {
-    html += `<tr>
-      <td>${place.name}</td>
-      <td>${place.length}</td>
-      <td>${place.status === 'free' ? 
-          '<span class="badge bg-success">Свободен</span>' :
-          '<span class="badge bg-danger">Занят</span>'}</td>
-      <td>${place.status === 'free' ?
-          `<button class="btn btn-outline-primary btn-sm" onclick="book(${place.id})">Забронировать</button>` : ''}</td>
-    </tr>`;
+    html += `<div class="col-md-4 mb-4">
+      <div class="card p-3">
+        <h5>${place.name}</h5>
+        <p class="price-text">${place.price} ₽ / сутки</p>
+        <span class="status-badge ${place.status === 'free' ? 'status-free' : 'status-occupied'}">
+          ${place.status === 'free' ? 'Свободен' : 'Занят'}
+        </span>
+        ${place.status === 'free' ? `<button class="btn btn-outline-primary btn-book" onclick="book('${place.id}')">Забронировать</button>` : ''}
+      </div>
+    </div>`;
   }
-  html += `</tbody></table>
-    <button class="btn btn-secondary mt-3" onclick="showPorts()">Назад</button>`;
+  html += `</div><button class="btn btn-secondary mt-3" onclick="showPorts()">Назад</button>`;
   document.getElementById("content").innerHTML = html;
 }
 
+function openLogin() { new bootstrap.Modal(document.getElementById('loginModal')).show(); }
+function openRegister() { new bootstrap.Modal(document.getElementById('registerModal')).show(); }
+
+function register() {
+  const name = document.getElementById("regName").value.trim();
+  const phone = document.getElementById("regPhone").value.trim();
+  const password = document.getElementById("regPassword").value.trim();
+  if (!name || !phone || !password) return alert("Заполните все поля");
+  localStorage.setItem("user", JSON.stringify({ name, phone, password }));
+  alert("Регистрация успешна!");
+  user = { name, phone, password };
+  updateUserArea();
+  bootstrap.Modal.getInstance(document.getElementById('registerModal')).hide();
+}
+
+function login() {
+  const phone = document.getElementById("loginPhone").value.trim();
+  const password = document.getElementById("loginPassword").value.trim();
+  const regUser = JSON.parse(localStorage.getItem("user"));
+  if (!regUser || regUser.phone !== phone || regUser.password !== password) return alert("Неверные данные!");
+  alert(`Добро пожаловать, ${regUser.name}!`);
+  user = regUser;
+  updateUserArea();
+  bootstrap.Modal.getInstance(document.getElementById('loginModal')).hide();
+}
+
+// --- Бронирование ---
 function book(place_id) {
-  const place = places.find(p => p.id === place_id);
-  let html = `
-    <h4>Бронирование: ${place.name}</h4>
-    <form onsubmit="submitBooking(event, ${place_id})" class="mt-3">
-      <div class="mb-3">
-        <label class="form-label">Ваше имя</label>
-        <input type="text" id="name" class="form-control" required>
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Телефон</label>
-        <input type="text" id="phone" class="form-control" required>
-      </div>
-      <button type="submit" class="btn btn-primary">Отправить заявку</button>
-      <button type="button" class="btn btn-secondary" onclick="showPorts()">Отмена</button>
-    </form>`;
-  document.getElementById("content").innerHTML = html;
+  if (!user) { alert("Чтобы забронировать место, необходимо войти в аккаунт или зарегистрироваться."); return; }
+  const ship = JSON.parse(localStorage.getItem(`ship_${user.phone}`));
+  if (!ship) { alert("Сначала заполните информацию о морском транспорте."); return; }
+  selectedPlace = place_id;
+  document.getElementById("startDate").value = '';
+  document.getElementById("endDate").value = '';
+  new bootstrap.Modal(document.getElementById('bookingModal')).show();
 }
 
-function submitBooking(e, place_id) {
-  e.preventDefault();
-  const name = document.getElementById("name").value.trim();
-  const phone = document.getElementById("phone").value.trim();
-  if (!name || !phone) return;
-  const place = places.find(p => p.id === place_id);
+function confirmBooking() {
+  const start = document.getElementById("startDate").value;
+  const end = document.getElementById("endDate").value;
+  if (!start || !end || start > end) return alert("Выберите корректные даты аренды");
+
+  const fuel = document.getElementById("fuelInput").value || 0;
+  const cleaning = document.getElementById("cleaningCheck").checked;
+  const water = document.getElementById("waterCheck").checked;
+  const battery = document.getElementById("batteryCheck").checked;
+  const place = places.find(p => p.id === selectedPlace);
   place.status = "occupied";
-  savePlaces();
-  alert(`Место "${place.name}" успешно забронировано на имя ${name}.`);
+
+  // Сохраняем историю
+  const history = JSON.parse(localStorage.getItem(`history_${user.phone}`)) || [];
+  history.push({ place: place.name, port: ports.find(p => p.id === place.port_id).name, start, end, services: { fuel, cleaning, water, battery } });
+  localStorage.setItem(`history_${user.phone}`, JSON.stringify(history));
+
+  bootstrap.Modal.getInstance(document.getElementById('bookingModal')).hide();
+
+  let msg = `Место "${place.name}" успешно забронировано на имя ${user.name}.\n\nУслуги:\n— Топливо: ${fuel} л\n`;
+  if (cleaning) msg += "— Уборка\n";
+  if (water) msg += "— Пресная вода\n";
+  if (battery) msg += "— Подзарядка аккумуляторов\n";
+  alert(msg);
   showPorts();
 }
 
-// При загрузке
+// --- История ---
+function showHistory() {
+  const history = JSON.parse(localStorage.getItem(`history_${user.phone}`)) || [];
+  let html = '';
+  if (history.length === 0) html = '<p>История пуста</p>';
+  else { html = '<ul>'; history.forEach(h => { html += `<li>${h.place} (${h.port}) с ${h.start} по ${h.end})</li>`; }); html += '</ul>'; }
+  document.getElementById('historyContent').innerHTML = html;
+  new bootstrap.Modal(document.getElementById('historyModal')).show();
+}
+
+// --- Морской транспорт ---
+function showShipModal() { new bootstrap.Modal(document.getElementById('shipModal')).show(); }
+
+function saveShipInfo() {
+  const serial = document.getElementById("shipSerial").value.trim();
+  const length = parseFloat(document.getElementById("shipLength").value);
+  const width = parseFloat(document.getElementById("shipWidth").value);
+  const draft = parseFloat(document.getElementById("shipDraft").value);
+  if (!serial || !length || !width || !draft) return alert("Заполните все поля корректно");
+  localStorage.setItem(`ship_${user.phone}`, JSON.stringify({ serial, length, width, draft }));
+  alert("Информация о морском транспорте сохранена!");
+  bootstrap.Modal.getInstance(document.getElementById('shipModal')).hide();
+}
+
+updateUserArea();
 showPorts();
 </script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
